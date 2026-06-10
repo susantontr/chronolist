@@ -2,7 +2,7 @@
 
 A lightweight, chronological daily to-do list that lays your tasks out on a horizontal timeline from 9 AM to 10 PM — so you can see your whole day at a glance.
 
-![ChronoList](https://raw.githubusercontent.com/susantontr/todoline/main/preview.png)
+![ChronoList](todoline.gif)
 
 ## Features
 
@@ -19,10 +19,10 @@ A lightweight, chronological daily to-do list that lays your tasks out on a hori
 
 ## Usage
 
-No install or build step needed. Just open `index.html` in any modern browser.
+No install or build step needed. Just open `todoline.html` in any modern browser.
 
 ```
-open index.html
+open todoline.html
 ```
 
 Everything runs locally. Data persists across browser sessions via `localStorage` and resets automatically each day.
