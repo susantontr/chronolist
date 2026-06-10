@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daily Timeline</title>
+<style>
+  :root {
+    --sweet-peony: #e06c9f;
+    --pink-carnation: #f283b6;
+    --cotton-rose: #edbfb7;
+    --dry-sage: #b5bfa1;
+    --muted-teal: #6e9887;
+    --bg: #faf8f6;
+    --surface: #ffffff;
+    --border: #ede9e5;
+    --text: #2c2420;
+    --text-muted: #9a8f88;
+    --card-h: 68px;
+    --lane-pad: 40px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    min-height: 100vh;
+    color: var(--text);
+    overflow-x: hidden;
+  }
+
+  /* HEADER */
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 200;
+  }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .logo { font-size: 18px; font-weight: 600; color: var(--sweet-peony); letter-spacing: -0.3px; }
+  .date-label { font-size: 13px; color: var(--text-muted); }
+  .header-right { display: flex; align-items: center; gap: 8px; }
+
+  .btn {
+    cursor: pointer;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: opacity .15s, background .15s;
+  }
+  .btn:hover { opacity: .85; }
+  .btn-primary { background: var(--sweet-peony); color: #fff; }
+  .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+  .btn-ghost:hover { background: var(--border); opacity: 1; }
+
+  /* MAIN */
+  .main { padding: 24px; }
+
+  /* TIMELINE */
+  .timeline-section { margin-bottom: 32px; }
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .8px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+
+  .timeline-scroll { overflow: visible; }
+  .timeline-inner { position: relative; width: 100%; }
+
+  .ruler { display: none; }
+
+  .timeline-body {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    position: relative;
+    overflow: hidden;
+    min-height: 96px;
+    width: 100%;
+  }
+
+  .grid-lines {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    pointer-events: none;
+  }
+  .grid-slot {
+    flex: 1;
+    border-right: 1px solid #f3ede8;
+    height: 100%;
+    min-width: 0;
+    position: relative;
+  }
+  .grid-slot.hour-start { border-right: 1px solid #e8e0d8; }
+  .slot-label {
+    position: absolute;
+    top: 5px;
+    left: 4px;
+    font-size: 10px;
+    color: var(--text-muted);
+    pointer-events: none;
+    white-space: nowrap;
+    line-height: 1;
+  }
+
+  .now-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--sweet-peony);
+    opacity: .5;
+    pointer-events: none;
+    z-index: 5;
+  }
+  .now-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--sweet-peony);
+    border-radius: 50%;
+    position: absolute;
+    top: -4px;
+    left: -3px;
+  }
+
+  .cards-layer {
+    position: relative;
+    padding: var(--lane-pad) 0;
+  }
+
+  .task-card {
+    position: absolute;
+    height: var(--card-h);
+    border-radius: 9px;
+    padding: 9px 11px 7px;
+    cursor: grab;
+    user-select: none;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: box-shadow .12s, transform .08s;
+    overflow: hidden;
+    touch-action: none;
+  }
+  .task-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.14); }
+  .task-card.dragging {
+    cursor: grabbing;
+    box-shadow: 0 10px 28px rgba(0,0,0,.22);
+    transform: scale(1.03);
+    z-index: 500;
+    opacity: .95;
+  }
+  .task-card.drag-over-ghost {
+    opacity: .35;
+  }
+
+  .card-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255,255,255,.97);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.3;
+  }
+  .card-time {
+    font-size: 10px;
+    color: rgba(255,255,255,.65);
+    margin-top: 2px;
+  }
+  .card-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: auto;
+  }
+  .card-duration {
+    font-size: 10px;
+    color: rgba(255,255,255,.55);
+  }
+  .card-actions {
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity .12s;
+  }
+  .task-card:hover .card-actions { opacity: 1; }
+  .card-btn {
+    background: rgba(255,255,255,.22);
+    color: rgba(255,255,255,.9);
+    border: none;
+    border-radius: 5px;
+    padding: 3px 7px;
+    font-size: 10px;
+    font-weight: 500;
+    cursor: pointer;
+    line-height: 1.4;
+  }
+  .card-btn:hover { background: rgba(255,255,255,.35); }
+
+  .resize-handle {
+    position: absolute;
+    top: 0; right: 0; bottom: 0;
+    width: 10px;
+    cursor: ew-resize;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .resize-handle::after {
+    content: '';
+    display: block;
+    width: 2px;
+    height: 20px;
+    background: rgba(255,255,255,.3);
+    border-radius: 2px;
+  }
+
+  /* DROP ZONE ghost */
+  .drop-ghost {
+    position: absolute;
+    height: var(--card-h);
+    border-radius: 9px;
+    border: 2px dashed var(--sweet-peony);
+    background: rgba(224,108,159,.08);
+    pointer-events: none;
+    display: none;
+    z-index: 10;
+  }
+  .drop-ghost.visible { display: block; }
+
+  /* COMPLETED DIVIDER inside timeline */
+  .done-divider {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-top: 1px solid var(--border);
+    background: #f7f4f1;
+    position: relative;
+    z-index: 2;
+  }
+  .done-divider-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .6px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+  .done-divider-line {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .done-cards-layer {
+    position: relative;
+    padding: var(--lane-pad) 0;
+    background: #f7f4f1;
+  }
+
+  /* completed task card style */
+  .task-card.is-done {
+    cursor: default;
+    opacity: .7;
+  }
+  .task-card.is-done .card-title {
+    text-decoration: line-through;
+    color: rgba(255,255,255,.6);
+  }
+  .task-card.is-done .resize-handle { display: none; }
+  .check-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    background: rgba(255,255,255,.3);
+    border-radius: 50%;
+    font-size: 9px;
+    color: white;
+    flex-shrink: 0;
+  }
+
+  /* MODAL */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(44,36,32,.35);
+    z-index: 1000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: var(--surface);
+    border-radius: 16px;
+    padding: 28px;
+    width: 360px;
+    box-shadow: 0 24px 64px rgba(44,36,32,.18);
+  }
+  .modal-title {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--sweet-peony);
+    margin-bottom: 20px;
+  }
+  .form-row { margin-bottom: 14px; }
+  .form-label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+  .form-input, .form-select {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 14px;
+    background: var(--bg);
+    color: var(--text);
+    outline: none;
+    transition: border-color .15s;
+    appearance: none;
+  }
+  .form-input:focus, .form-select:focus { border-color: var(--sweet-peony); }
+  .form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .color-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .color-swatch {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 3px solid transparent;
+    transition: border-color .12s, transform .1s;
+  }
+  .color-swatch.selected { border-color: var(--text); transform: scale(1.15); }
+  .modal-actions { display: flex; gap: 10px; margin-top: 24px; }
+  .modal-actions .btn { flex: 1; justify-content: center; }
+
+  /* TOAST */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--text);
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 10px;
+    font-size: 13px;
+    z-index: 2000;
+    transition: transform .25s ease;
+    pointer-events: none;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* SCROLLBAR */
+  .timeline-scroll::-webkit-scrollbar { height: 6px; }
+  .timeline-scroll::-webkit-scrollbar-track { background: transparent; }
+  .timeline-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="logo">✦ today</div>
+    <div class="date-label" id="date-label"></div>
+  </div>
+  <div class="header-right">
+    <button class="btn btn-ghost" onclick="clearAll()">Clear all data</button>
+    <button class="btn btn-primary" onclick="openModal()">+ Add task</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="timeline-section">
+    <div class="section-label">Schedule</div>
+    <div class="timeline-scroll">
+      <div class="timeline-inner" id="timeline-inner">
+        <div class="ruler" id="ruler"></div>
+        <div class="timeline-body" id="timeline-body">
+          <div class="grid-lines" id="grid-lines"></div>
+          <div class="now-line" id="now-line" style="display:none">
+            <div class="now-dot"></div>
+          </div>
+          <div class="drop-ghost" id="drop-ghost"></div>
+          <div class="cards-layer" id="cards-layer"></div>
+          <div id="done-zone" style="display:none">
+            <div class="done-divider">
+              <span class="done-divider-label">Completed</span>
+              <div class="done-divider-line"></div>
+            </div>
+            <div class="done-cards-layer" id="done-cards-layer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Task Modal -->
+<div class="modal-backdrop" id="modal-backdrop" onclick="closeModalIfBackdrop(event)">
+  <div class="modal">
+    <div class="modal-title">New task</div>
+    <div class="form-row">
+      <label class="form-label">Task name</label>
+      <input class="form-input" id="input-name" type="text" placeholder="What are you working on?" />
+    </div>
+    <div class="form-row form-row-2">
+      <div>
+        <label class="form-label">Start time</label>
+        <select class="form-select" id="input-start"></select>
+      </div>
+      <div>
+        <label class="form-label">Duration</label>
+        <select class="form-select" id="input-duration">
+          <option value="1">30 min</option>
+          <option value="2" selected>1 hour</option>
+          <option value="3">1.5 hours</option>
+          <option value="4">2 hours</option>
+          <option value="6">3 hours</option>
+          <option value="8">4 hours</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Color</label>
+      <div class="color-row" id="color-row"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveTask()">Add task</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const START_HOUR = 9;
+const END_HOUR = 22;
+const TOTAL_SLOTS = (END_HOUR - START_HOUR) * 2;
+const CARD_H = 68;
+let SLOT_W = 88;
+
+function updateSlotW() {
+  const body = document.getElementById('timeline-body');
+  if (body) SLOT_W = body.clientWidth / TOTAL_SLOTS;
+}
+const LANE_PAD = 40;
+const LANE_H = CARD_H + 8;
+
+const COLORS = [
+  '#e06c9f',
+  '#f283b6',
+  '#6e9887',
+  '#b5bfa1',
+  '#c9927a',
+  '#9b7ec8',
+  '#7aaebd',
+  '#d4a76a',
+];
+
+let tasks = [];
+let selectedColor = COLORS[0];
+let editingId = null;
+
+// ── Storage & daily reset ──────────────────────────────────────────
+const STORAGE_KEY = 'daily-timeline-v2';
+
+function todayStr() {
+  return new Date().toLocaleDateString('en-CA');
+}
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    if (data.date !== todayStr()) {
+      localStorage.removeItem(STORAGE_KEY);
+      showToast('New day — schedule cleared!');
+      return;
+    }
+    tasks = data.tasks || [];
+  } catch(e) {}
+}
+
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ date: todayStr(), tasks }));
+}
+
+function clearAll() {
+  if (!confirm('Clear all tasks and saved data?')) return;
+  tasks = [];
+  localStorage.removeItem(STORAGE_KEY);
+  render();
+  showToast('All data cleared.');
+}
+
+// ── Time helpers ───────────────────────────────────────────────────
+function slotToMinutes(slot) {
+  return START_HOUR * 60 + slot * 30;
+}
+
+function minutesToLabel(mins) {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h > 12 ? h - 12 : (h === 0 ? 12 : h);
+  return m === 0 ? `${h12} ${ampm}` : `${h12}:${String(m).padStart(2,'0')} ${ampm}`;
+}
+
+function slotLabel(slot) {
+  const mins = slotToMinutes(slot);
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  const ampm = h >= 12 ? 'pm' : 'am';
+  const h12 = h > 12 ? h - 12 : (h === 0 ? 12 : h);
+  return m === 0 ? `${h12}${ampm}` : `${h12}:${String(m).padStart(2,'0')}`;
+}
+
+function durationLabel(slots) {
+  const mins = slots * 30;
+  if (mins < 60) return `${mins}m`;
+  if (mins % 60 === 0) return `${mins/60}h`;
+  return `${Math.floor(mins/60)}h ${mins%60}m`;
+}
+
+// ── Lane layout ────────────────────────────────────────────────────
+function assignLanes(activeTasks) {
+  const sorted = [...activeTasks].sort((a,b) => a.startSlot - b.startSlot);
+  const laneEndSlot = [];
+
+  sorted.forEach(t => {
+    let lane = laneEndSlot.findIndex(end => end <= t.startSlot);
+    if (lane === -1) {
+      lane = laneEndSlot.length;
+      laneEndSlot.push(0);
+    }
+    laneEndSlot[lane] = t.startSlot + t.durationSlots;
+    t._lane = lane;
+  });
+
+  return laneEndSlot.length || 1;
+}
+
+// ── Render ─────────────────────────────────────────────────────────
+function render() {
+  updateSlotW();
+  renderRuler();
+  renderGrid();
+  renderCards();
+  renderCompleted();
+  updateNowLine();
+}
+
+function renderRuler() {
+  const ruler = document.getElementById('ruler');
+  ruler.innerHTML = '';
+  for (let s = 0; s <= TOTAL_SLOTS; s++) {
+    const el = document.createElement('div');
+    el.className = 'ruler-slot';
+    const isHour = s % 2 === 0;
+    el.textContent = (SLOT_W >= 36 || isHour) ? slotLabel(s) : '';
+    ruler.appendChild(el);
+  }
+}
+
+function renderGrid() {
+  const gl = document.getElementById('grid-lines');
+  gl.innerHTML = '';
+  for (let s = 0; s < TOTAL_SLOTS; s++) {
+    const el = document.createElement('div');
+    el.className = 'grid-slot' + (s % 2 === 0 ? ' hour-start' : '');
+    const label = document.createElement('span');
+    label.className = 'slot-label';
+    label.textContent = slotLabel(s);
+    el.appendChild(label);
+    gl.appendChild(el);
+  }
+}
+
+function renderCards() {
+  const layer = document.getElementById('cards-layer');
+  layer.innerHTML = '';
+
+  const active = tasks.filter(t => !t.completed);
+  const lanes = assignLanes(active);
+  const activeHeight = LANE_PAD * 2 + Math.max(1, lanes) * LANE_H;
+
+  active.forEach(task => {
+    const el = buildCard(task, false);
+    el.style.top = (LANE_PAD + task._lane * LANE_H) + 'px';
+    attachDrag(el, task.id);
+    attachResize(el.querySelector('.resize-handle'), task.id);
+    layer.appendChild(el);
+  });
+
+  layer.style.height = activeHeight + 'px';
+  renderCompleted();
+}
+
+function renderCompleted() {
+  const done = tasks.filter(t => t.completed);
+  const doneZone = document.getElementById('done-zone');
+  const doneLayer = document.getElementById('done-cards-layer');
+
+  if (!done.length) {
+    doneZone.style.display = 'none';
+    doneLayer.innerHTML = '';
+    return;
+  }
+
+  doneZone.style.display = 'block';
+  doneLayer.innerHTML = '';
+
+  const doneLanes = assignLanes(done);
+  const doneHeight = LANE_PAD * 2 + Math.max(1, doneLanes) * LANE_H;
+  doneLayer.style.height = doneHeight + 'px';
+
+  done.forEach(task => {
+    const el = buildCard(task, true);
+    el.style.top = (LANE_PAD + task._lane * LANE_H) + 'px';
+    doneLayer.appendChild(el);
+  });
+}
+
+function slotPct(slot) { return (slot / TOTAL_SLOTS * 100).toFixed(6) + '%'; }
+function durationPct(slots) { return (slots / TOTAL_SLOTS * 100).toFixed(6) + '%'; }
+
+function buildCard(task, isDone) {
+  const el = document.createElement('div');
+  el.className = 'task-card' + (isDone ? ' is-done' : '');
+  el.dataset.id = task.id;
+
+  el.style.left = slotPct(task.startSlot);
+  el.style.width = `calc(${durationPct(task.durationSlots)} - 4px)`;
+  el.style.background = isDone
+    ? task.color + 'aa'
+    : task.color;
+
+  const startLabel = minutesToLabel(slotToMinutes(task.startSlot));
+  const endLabel   = minutesToLabel(slotToMinutes(task.startSlot + task.durationSlots));
+
+  if (isDone) {
+    el.innerHTML = `
+      <div style="display:flex;align-items:center;gap:5px">
+        <span class="check-badge">✓</span>
+        <div class="card-title">${escHtml(task.title)}</div>
+      </div>
+      <div class="card-time">${startLabel} – ${endLabel}</div>
+      <div class="card-bottom">
+        <div class="card-duration">${durationLabel(task.durationSlots)}</div>
+        <div class="card-actions">
+          <button class="card-btn" onclick="event.stopPropagation(); undoComplete('${task.id}')">Undo</button>
+          <button class="card-btn" onclick="event.stopPropagation(); deleteTask('${task.id}')">✕</button>
+        </div>
+      </div>
+    `;
+  } else {
+    el.innerHTML = `
+      <div>
+        <div class="card-title">${escHtml(task.title)}</div>
+        <div class="card-time">${startLabel} – ${endLabel}</div>
+      </div>
+      <div class="card-bottom">
+        <div class="card-duration">${durationLabel(task.durationSlots)}</div>
+        <div class="card-actions">
+          <button class="card-btn" onclick="event.stopPropagation(); completeTask('${task.id}')">Done</button>
+          <button class="card-btn" onclick="event.stopPropagation(); deleteTask('${task.id}')">✕</button>
+        </div>
+      </div>
+      <div class="resize-handle" data-id="${task.id}"></div>
+    `;
+  }
+  return el;
+}
+
+function updateNowLine() {
+  const now = new Date();
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const startMins = START_HOUR * 60;
+  const endMins = END_HOUR * 60;
+  const line = document.getElementById('now-line');
+  if (nowMins < startMins || nowMins > endMins) {
+    line.style.display = 'none';
+    return;
+  }
+  const frac = (nowMins - startMins) / (endMins - startMins);
+  line.style.display = 'block';
+  line.style.left = (frac * 100).toFixed(4) + '%';
+}
+
+// ── Drag & Drop ────────────────────────────────────────────────────
+function attachDrag(el, id) {
+  let startX, startLeft, startTop, dragging = false;
+  const ghost = document.getElementById('drop-ghost');
+
+  el.addEventListener('mousedown', e => {
+    if (e.target.closest('.resize-handle') || e.target.closest('.card-btn')) return;
+    e.preventDefault();
+    dragging = false;
+    startX = e.clientX;
+
+    const rect = el.getBoundingClientRect();
+    const layerRect = document.getElementById('cards-layer').getBoundingClientRect();
+    startLeft = rect.left - layerRect.left;
+    startTop = rect.top - layerRect.top;
+
+    const onMove = mv => {
+      dragging = true;
+      const dx = mv.clientX - startX;
+      const rawLeft = startLeft + dx;
+      const clampedLeft = Math.max(0, Math.min(rawLeft, (TOTAL_SLOTS - 1) * SLOT_W));
+      const snapSlot = Math.round(clampedLeft / SLOT_W);
+      const snapLeft = snapSlot * SLOT_W;
+
+      el.classList.add('dragging');
+      el.style.left = clampedLeft + 'px';
+
+      const task = tasks.find(t => t.id === id);
+      const endSlot = snapSlot + task.durationSlots;
+      if (endSlot <= TOTAL_SLOTS) {
+        ghost.style.left = slotPct(snapSlot);
+        ghost.style.top = startTop + 'px';
+        ghost.style.width = `calc(${durationPct(task.durationSlots)} - 4px)`;
+        ghost.style.height = CARD_H + 'px';
+        ghost.classList.add('visible');
+      } else {
+        ghost.classList.remove('visible');
+      }
+    };
+
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      el.classList.remove('dragging');
+      ghost.classList.remove('visible');
+
+      if (dragging) {
+        const rawLeft = parseFloat(el.style.left);
+        const snapSlot = Math.max(0, Math.round(rawLeft / SLOT_W));
+        const task = tasks.find(t => t.id === id);
+        if (task) {
+          task.startSlot = Math.min(snapSlot, TOTAL_SLOTS - task.durationSlots);
+        }
+        save();
+        render();
+      }
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
+function attachResize(handle, id) {
+  handle.addEventListener('mousedown', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const task = tasks.find(t => t.id === id);
+    const startSlots = task.durationSlots;
+
+    const onMove = mv => {
+      const dx = mv.clientX - startX;
+      const deltaSlots = Math.round(dx / SLOT_W);
+      const newSlots = Math.max(1, Math.min(startSlots + deltaSlots, TOTAL_SLOTS - task.startSlot));
+      if (task.durationSlots !== newSlots) {
+        task.durationSlots = newSlots;
+        const el = document.querySelector(`[data-id="${id}"]`);
+        if (el) el.style.width = (newSlots * SLOT_W - 4) + 'px';
+      }
+    };
+
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      save();
+      render();
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
+// ── Task actions ───────────────────────────────────────────────────
+function completeTask(id) {
+  const t = tasks.find(t => t.id === id);
+  if (t) { t.completed = true; save(); render(); }
+}
+
+function undoComplete(id) {
+  const t = tasks.find(t => t.id === id);
+  if (t) { t.completed = false; save(); render(); }
+}
+
+function deleteTask(id) {
+  tasks = tasks.filter(t => t.id !== id);
+  save();
+  render();
+}
+
+// ── Modal ──────────────────────────────────────────────────────────
+function populateModal() {
+  const sel = document.getElementById('input-start');
+  sel.innerHTML = '';
+  for (let s = 0; s < TOTAL_SLOTS; s++) {
+    const opt = document.createElement('option');
+    opt.value = s;
+    opt.textContent = minutesToLabel(slotToMinutes(s));
+    sel.appendChild(opt);
+  }
+
+  const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
+  const nowSlot = Math.max(0, Math.min(Math.round((nowMins - START_HOUR * 60) / 30), TOTAL_SLOTS - 1));
+  sel.value = nowSlot;
+
+  const colorRow = document.getElementById('color-row');
+  colorRow.innerHTML = COLORS.map((c,i) => `
+    <div class="color-swatch ${c === selectedColor ? 'selected' : ''}" style="background:${c}" onclick="selectColor('${c}')"></div>
+  `).join('');
+}
+
+function selectColor(c) {
+  selectedColor = c;
+  document.querySelectorAll('.color-swatch').forEach(s => {
+    s.classList.toggle('selected', s.style.background === c || rgbToHex(s.style.background) === c);
+  });
+}
+
+function rgbToHex(rgb) {
+  const m = rgb.match(/\d+/g);
+  if (!m) return rgb;
+  return '#' + m.slice(0,3).map(x => parseInt(x).toString(16).padStart(2,'0')).join('');
+}
+
+function openModal() {
+  populateModal();
+  document.getElementById('input-name').value = '';
+  document.getElementById('modal-backdrop').classList.add('open');
+  setTimeout(() => document.getElementById('input-name').focus(), 50);
+}
+
+function closeModal() {
+  document.getElementById('modal-backdrop').classList.remove('open');
+}
+
+function closeModalIfBackdrop(e) {
+  if (e.target === document.getElementById('modal-backdrop')) closeModal();
+}
+
+function saveTask() {
+  const name = document.getElementById('input-name').value.trim();
+  if (!name) { document.getElementById('input-name').focus(); return; }
+  const startSlot = parseInt(document.getElementById('input-start').value);
+  const durationSlots = parseInt(document.getElementById('input-duration').value);
+
+  tasks.push({
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+    title: name,
+    startSlot,
+    durationSlots,
+    color: selectedColor,
+    completed: false,
+  });
+
+  save();
+  render();
+  closeModal();
+  selectedColor = COLORS[(COLORS.indexOf(selectedColor) + 1) % COLORS.length];
+}
+
+// ── Utils ──────────────────────────────────────────────────────────
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+// Enter to submit modal
+document.getElementById('input-name').addEventListener('keydown', e => {
+  if (e.key === 'Enter') saveTask();
+  if (e.key === 'Escape') closeModal();
+});
+
+// Date label
+function setDateLabel() {
+  const d = new Date();
+  document.getElementById('date-label').textContent = d.toLocaleDateString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric'
+  });
+}
+
+// ── Init ───────────────────────────────────────────────────────────
+load();
+setDateLabel();
+setTimeout(() => { updateSlotW(); render(); }, 0);
+
+window.addEventListener('resize', () => { updateSlotW(); render(); });
+
+setInterval(updateNowLine, 60000);
+</script>
+</body>
+</html>
