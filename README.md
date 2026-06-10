@@ -1,8 +1,8 @@
-# TodoLine
+# ChronoList
 
 A lightweight, chronological daily to-do list that lays your tasks out on a horizontal timeline from 9 AM to 10 PM — so you can see your whole day at a glance.
 
-![TodoLine](https://raw.githubusercontent.com/susantontr/todoline/main/preview.png)
+![ChronoList](https://raw.githubusercontent.com/susantontr/todoline/main/preview.png)
 
 ## Features
 
