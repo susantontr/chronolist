@@ -145,7 +145,7 @@
     z-index: 20;
   }
   .pill:active { cursor: grabbing; }
-  .pill.dragging { opacity: .8; z-index: 100; filter: brightness(1.1); }
+  .pill.dragging { opacity: 1; z-index: 100; filter: brightness(1.1); }
   .pill.done { opacity: .45; cursor: default; }
   .pill.done .pname { text-decoration: line-through; }
   .pname {
@@ -477,7 +477,7 @@ function buildCardsH() {
     el.style.left  = slotPct(t.slot);
     el.style.width = `calc(${durPct(t.dur)} - 3px)`;
     el.style.top   = (t._lane * (PILL_H + GAP)) + 'px';
-    el.style.background = t.done ? t.color+'88' : t.color;
+    el.style.background = t.done ? t.color : t.color;
 
     el.innerHTML = `
       <span class="pname">${esc(t.title)}</span>
@@ -548,7 +548,7 @@ function buildCardsV() {
     el.style.height = (t.dur * SLOT_H_VERT - 3) + 'px';
     el.style.left   = (t._lane * (CARD_W + GAP)) + 'px';
     el.style.width  = CARD_W + 'px';
-    el.style.background = t.done ? t.color+'88' : t.color;
+    el.style.background = t.done ? t.color : t.color;
 
     el.innerHTML = `
       <span class="pname">${esc(t.title)}</span>
