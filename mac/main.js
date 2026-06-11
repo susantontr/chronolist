@@ -1,7 +1,7 @@
 const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, screen } = require('electron');
 const path = require('path');
 
-let win, addWin, tray, currentLayout = 'h';
+let win, addWin, tray, currentLayout = 'v';
 
 function buildTrayMenu() {
   return Menu.buildFromTemplate([
@@ -25,10 +25,11 @@ function applyWindowLayout(mode) {
   const display = screen.getPrimaryDisplay();
   const { width: sw, height: sh } = display.workAreaSize;
   if (mode === 'v') {
-    win.setSize(260, sh);
+    win.setSize(100, sh);
     win.setPosition(0, 0);
   } else {
-    win.setSize(Math.min(sw, 1400), 200);
+    win.setSize(Math.min(sw, 1400), 100);
+    win.setPosition(Math.round((sw - Math.min(sw, 1400)) / 2), 0);
   }
 }
 
@@ -61,9 +62,10 @@ function createTray() {
 }
 
 function createWindow() {
+  const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize;
   win = new BrowserWindow({
-    width: 1400,
-    height: 110,
+    width: 90,
+    height: sh,
     alwaysOnTop: false,
     resizable: true,
     frame: false,
@@ -76,15 +78,16 @@ function createWindow() {
     },
   });
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-
-  const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize;
-  win.setPosition(Math.round((sw - 1400) / 2), Math.round(sh / 2 - 55));
+  win.setPosition(0, 0);
 
   win.loadFile('app.html');
+  win.webContents.on('did-finish-load', () => {
+    win.webContents.send('layout-changed', currentLayout);
+  });
 
   ipcMain.on('quit', () => app.quit());
   ipcMain.on('set-layout', (event, mode) => {
-    currentLayout = mode === 'vertical' ? 'v' : 'h';
+    currentLayout = mode;
     applyWindowLayout(currentLayout);
     tray.setContextMenu(buildTrayMenu());
   });

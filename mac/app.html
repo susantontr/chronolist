@@ -367,7 +367,7 @@ const COLORS = ['#e06c9f','#f283b6','#6e9887','#b5bfa1','#c9927a','#9b7ec8','#7a
 const KEY = 'daily-timeline-v2';
 const SLOT_H_VERT = 32;
 
-let tasks = [], selColor = COLORS[0], layout = localStorage.getItem('tl-layout') || 'h';
+let tasks = [], selColor = COLORS[0], layout = localStorage.getItem('tl-layout') || 'v';
 let TW = 0; // timeline width (horizontal)
 
 function todayStr() { return new Date().toLocaleDateString('en-CA'); }
@@ -405,13 +405,13 @@ function assignLanes(list) {
 function toggleLayout() {
   layout = layout==='h'?'v':'h';
   localStorage.setItem('tl-layout', layout);
+  if (window.electronAPI) window.electronAPI.setLayout(layout);
   applyLayout();
 }
 function applyLayout() {
   const isV = layout==='v';
   document.body.classList.toggle('vert', isV);
   document.getElementById('lay-btn').textContent = isV ? '⇔' : '⇕';
-  if (window.electronAPI) window.electronAPI.setLayout(layout);
   render();
 }
 
@@ -764,7 +764,9 @@ document.getElementById('p-name').addEventListener('keydown',e=>{
 // ── electron ──
 if(window.electronAPI){
   window.electronAPI.onLayoutChanged(mode=>{
-    layout=mode; localStorage.setItem('tl-layout',layout); applyLayout();
+    layout=mode;
+    localStorage.setItem('tl-layout', mode);
+    applyLayout();
   });
   window.electronAPI.onTaskAdded(task=>{
     task.id = Date.now().toString(36)+Math.random().toString(36).slice(2,5);
