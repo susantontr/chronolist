@@ -36,18 +36,27 @@ A native macOS app that lives as a floating timeline bar on your desktop.
 
 ![Todoline Mac](todoline_mac.gif)
 
+> ⚠️ Work in progress — not yet enrolled in the Apple Developer Program.
+
 ### Features
 
 - Everything in the web version, plus:
-- **Floating window** — stays on top of your desktop, always visible
+- **Floating window** — stays on your desktop, always visible
 - **Horizontal & vertical layout** — toggle between a timeline bar and a vertical agenda view
 - **Separate add-task window** — always full-size regardless of how small the timeline is
 - **Quit button** — hover over the app to reveal controls including a quit button
 
-### Usage
+### Download
 
-```
-cd mac
-npm install
-npm start
-```
+Download the `.dmg` from the [mac/dist](mac/dist) folder, open it, and drag Todoline to your Applications folder.
+
+### ⚠️ macOS "damaged" warning?
+
+This happens because the app isn't yet enrolled in the Apple Developer Program. It's completely safe — just follow these steps to fix it:
+
+1. Open **Terminal**
+2. Type `xattr -cr ` (with a space at the end — don't hit Enter yet)
+3. Open **Finder** → go to your **Applications** folder
+4. Drag and drop **Todoline.app** into the Terminal window (it auto-fills the path)
+5. Now hit **Enter**
+6. Try opening the app again ✅
