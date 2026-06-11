@@ -12,7 +12,10 @@
     "productName": "Todoline",
     "files": [
       "main.js",
-      "todoline.html"
+      "app.html",
+      "add-task.html",
+      "preload.js",
+      "preload-add.js"
     ],
     "mac": {
       "category": "public.app-category.productivity",
@@ -24,6 +27,6 @@
   },
   "devDependencies": {
     "electron": "^30.0.0",
-    "electron-builder": "^24.0.0"
+    "electron-builder": "^24.13.3"
   }
 }
