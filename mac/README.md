@@ -22,7 +22,7 @@ A native macOS app that lives as a floating timeline bar on your desktop, lettin
 
 ## Download
 
-Download the `.dmg` from the `dist/` folder, open it, and drag Todoline to your Applications folder.
+Download the latest `.dmg` from the [Releases page](https://github.com/susantontr/todoline/releases), open it, and drag Todoline to your Applications folder.
 
 ## ⚠️ macOS "damaged" warning?
 
