@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Add Task</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    font-family: -apple-system, system-ui;
+    background: transparent;
+    height: 100%;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  #wrap {
+    background: rgba(255,255,255,0.95);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 4px 24px rgba(0,0,0,.18), 0 0 0 .5px rgba(0,0,0,.09);
+    -webkit-app-region: drag;
+  }
+  h3 {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin-bottom: 12px;
+    -webkit-app-region: drag;
+  }
+  .field { margin-bottom: 10px; }
+  .lbl {
+    font-size: 9px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .4px;
+    color: rgba(0,0,0,.38); margin-bottom: 3px;
+  }
+  .pi, .ps {
+    width: 100%; font-size: 13px; font-family: inherit;
+    background: rgba(0,0,0,.06); border: none;
+    border-radius: 6px; padding: 6px 8px;
+    color: #1a1a1a; outline: none; appearance: none;
+    -webkit-app-region: no-drag;
+  }
+  .pi:focus, .ps:focus { background: rgba(0,0,0,.09); }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+  .cdots { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 4px; }
+  .cd {
+    width: 18px; height: 18px; border-radius: 50%;
+    cursor: pointer; border: 2px solid transparent;
+    transition: transform .1s;
+    -webkit-app-region: no-drag;
+  }
+  .cd.sel { border-color: rgba(0,0,0,.4); transform: scale(1.2); }
+  .btns { display: flex; gap: 8px; margin-top: 14px; }
+  .pb {
+    flex: 1; font-size: 13px; font-weight: 500;
+    font-family: inherit; border: none;
+    border-radius: 7px; padding: 7px; cursor: pointer;
+    -webkit-app-region: no-drag;
+  }
+  .pb-c { background: rgba(0,0,0,.07); color: #1a1a1a; }
+  .pb-a { background: #e06c9f; color: #fff; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h3>New Task</h3>
+  <div class="field">
+    <input class="pi" id="p-name" placeholder="Task name" />
+  </div>
+  <div class="row">
+    <div>
+      <div class="lbl">Start</div>
+      <select class="ps" id="p-start"></select>
+    </div>
+    <div>
+      <div class="lbl">Duration</div>
+      <select class="ps" id="p-dur">
+        <option value="1">30 min</option>
+        <option value="2" selected>1 hr</option>
+        <option value="3">1.5 hr</option>
+        <option value="4">2 hr</option>
+        <option value="6">3 hr</option>
+        <option value="8">4 hr</option>
+      </select>
+    </div>
+  </div>
+  <div class="lbl">Color</div>
+  <div class="cdots" id="cdots"></div>
+  <div class="btns">
+    <button class="pb pb-c" id="cancel-btn">Cancel</button>
+    <button class="pb pb-a" id="add-btn">Add Task</button>
+  </div>
+</div>
+
+<script>
+const S = 9, E = 22, SLOTS = (E - S) * 2;
+const COLORS = ['#e06c9f','#f283b6','#6e9887','#b5bfa1','#c9927a','#9b7ec8','#7aaebd','#d4a76a'];
+let selColor = COLORS[0];
+
+function minsLbl(m) {
+  const h = Math.floor(m/60), mn = m%60, ap = h>=12?'pm':'am';
+  const h12 = h>12?h-12:(h===0?12:h);
+  return mn===0?`${h12}${ap}`:`${h12}:${String(mn).padStart(2,'0')}${ap}`;
+}
+function slotMins(s) { return S * 60 + s * 30; }
+
+// populate start times
+const sel = document.getElementById('p-start');
+for (let s = 0; s < SLOTS; s++) {
+  const o = document.createElement('option');
+  o.value = s; o.textContent = minsLbl(slotMins(s)); sel.appendChild(o);
+}
+const now = new Date();
+sel.value = Math.max(0, Math.min(Math.round((now.getHours()*60+now.getMinutes()-S*60)/30), SLOTS-1));
+
+// color dots
+function renderColors() {
+  document.getElementById('cdots').innerHTML = COLORS.map(c =>
+    `<div class="cd${c===selColor?' sel':''}" style="background:${c}" data-c="${c}"></div>`
+  ).join('');
+  document.querySelectorAll('.cd').forEach(d => d.addEventListener('click', () => {
+    selColor = d.dataset.c;
+    renderColors();
+  }));
+}
+renderColors();
+
+// receive initial color from main
+window.addTaskAPI?.onInit(data => {
+  selColor = data.color || COLORS[0];
+  renderColors();
+});
+
+document.getElementById('p-name').focus();
+
+function doAdd() {
+  const name = document.getElementById('p-name').value.trim();
+  if (!name) { document.getElementById('p-name').focus(); return; }
+  window.addTaskAPI?.submit({
+    title: name,
+    slot: parseInt(document.getElementById('p-start').value),
+    dur: parseInt(document.getElementById('p-dur').value),
+    color: selColor,
+  });
+}
+
+document.getElementById('add-btn').addEventListener('click', doAdd);
+document.getElementById('cancel-btn').addEventListener('click', () => window.addTaskAPI?.cancel());
+document.getElementById('p-name').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doAdd();
+  if (e.key === 'Escape') window.addTaskAPI?.cancel();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Todoline</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: transparent;
+    font-family: -apple-system, system-ui;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+    height: 100%;
+  }
+
+  /* ── wrapper ── */
+  #wrap {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 0 16px;
+    -webkit-app-region: drag;
+    background: rgba(255,255,255,0.45);
+    border-radius: 12px;
+  }
+
+  /* ── top bar (date + controls) ── */
+  #bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+    height: 20px;
+    -webkit-app-region: drag;
+  }
+  #date {
+    font-size: 11px;
+    font-weight: 500;
+    color: #000;
+    -webkit-app-region: drag;
+  }
+  #ctrls {
+    display: flex;
+    gap: 5px;
+    opacity: 0;
+    transition: opacity .2s;
+    -webkit-app-region: no-drag;
+  }
+  #wrap:hover #ctrls { opacity: 1; }
+
+  .ic {
+    width: 20px; height: 20px;
+    border-radius: 50%; border: none;
+    background: rgba(0,0,0,0.1);
+    color: rgba(0,0,0,0.45);
+    font-size: 11px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .12s;
+    -webkit-app-region: no-drag;
+  }
+  .ic:hover { background: rgba(0,0,0,0.18); }
+  .ic.pk { background: #e06c9f; color: #fff; }
+  .ic.pk:hover { background: #d45f8e; }
+
+  /* ── timeline ── */
+  #tl {
+    position: relative;
+    height: 52px;
+    -webkit-app-region: no-drag;
+  }
+
+  /* ruler line */
+  #ruler-line {
+    position: absolute;
+    top: 18px;
+    left: 0; right: 0;
+    height: 1px;
+    background: #1a1a1a;
+  }
+
+  /* tick marks + labels */
+  #ticks { position: absolute; inset: 0; pointer-events: none; }
+  .tick {
+    position: absolute;
+    top: 13px;
+    width: 1px;
+    height: 10px;
+    background: #1a1a1a;
+  }
+  .tick.hr { background: #1a1a1a; }
+  .tick-lbl {
+    position: absolute;
+    top: 24px;
+    font-size: 9px;
+    color: #1a1a1a;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    font-weight: 500;
+  }
+
+  /* now indicator */
+  #now-dot {
+    position: absolute;
+    top: 14px;
+    width: 8px; height: 8px;
+    background: #e06c9f;
+    border-radius: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    pointer-events: none;
+  }
+  #now-line-v {
+    position: absolute;
+    top: 14px;
+    width: 1.5px;
+    bottom: 0;
+    background: #e06c9f;
+    opacity: .4;
+    transform: translateX(-50%);
+    z-index: 9;
+    pointer-events: none;
+  }
+
+  /* cards */
+  #cards {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 18px;
+  }
+
+  .pill {
+    position: absolute;
+    top: 0;
+    height: 18px;
+    border-radius: 5px;
+    padding: 0 7px;
+    display: flex;
+    align-items: center;
+    cursor: grab;
+    overflow: hidden;
+    transition: filter .1s, opacity .1s;
+    z-index: 20;
+  }
+  .pill:active { cursor: grabbing; }
+  .pill.dragging { opacity: .8; z-index: 100; filter: brightness(1.1); }
+  .pill.done { opacity: .45; cursor: default; }
+  .pill.done .pname { text-decoration: line-through; }
+  .pname {
+    font-size: 10px;
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+  }
+  .pill-actions {
+    position: absolute;
+    top: 0; right: 0; bottom: 0;
+    display: none;
+    align-items: center;
+    gap: 2px;
+    padding-right: 4px;
+    background: linear-gradient(to right, transparent, rgba(0,0,0,.25) 30%);
+    border-radius: 0 5px 5px 0;
+    z-index: 10;
+  }
+  .pill:hover .pill-actions { display: flex; }
+  body.vert .pill-actions {
+    top: 4px; bottom: 12px;
+    border-radius: 0 4px 0 0;
+  }
+  .pab {
+    font-size: 9px; border: none; border-radius: 3px;
+    background: rgba(255,255,255,.28); color: #fff;
+    padding: 1px 4px; cursor: pointer; font-family: inherit;
+    white-space: nowrap;
+  }
+  .pab:hover { background: rgba(255,255,255,.45); }
+
+  /* resize handle */
+  .rh {
+    position: absolute;
+    top: 0; right: 0; bottom: 0;
+    width: 7px; cursor: ew-resize;
+    z-index: 5;
+  }
+
+  /* ghost */
+  #ghost {
+    position: absolute;
+    top: 0; height: 18px;
+    border-radius: 5px;
+    border: 1.5px dashed #e06c9f;
+    background: rgba(224,108,159,.12);
+    pointer-events: none;
+    display: none;
+    z-index: 50;
+  }
+  #ghost.on { display: block; }
+
+  /* ── VERTICAL layout ── */
+  body.vert #wrap {
+    padding: 8px 0;
+    justify-content: flex-start;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  body.vert #bar {
+    padding: 0 10px;
+    margin-bottom: 4px;
+    flex-shrink: 0;
+  }
+  body.vert #tl {
+    height: auto;
+    flex: 1;
+    position: relative;
+  }
+  body.vert #ruler-line { display: none; }
+  body.vert #ticks { position: relative; display: flex; flex-direction: column; }
+  body.vert .tick {
+    position: relative;
+    top: auto; left: auto;
+    width: 100%; height: 32px;
+    background: none;
+    border-bottom: 1px solid rgba(0,0,0,0.07);
+    display: flex; align-items: center;
+    padding-left: 8px;
+  }
+  body.vert .tick.hr { border-bottom-color: rgba(0,0,0,0.13); }
+  body.vert .tick-lbl {
+    position: relative;
+    top: auto; left: auto;
+    transform: none;
+    font-size: 9px;
+    color: #1a1a1a;
+    font-weight: 500;
+    width: 32px;
+    flex-shrink: 0;
+  }
+  body.vert #now-dot {
+    top: auto; left: 0 !important;
+    right: 0; width: 100%;
+    height: 1.5px; border-radius: 0;
+    background: #e06c9f;
+    transform: none;
+  }
+  body.vert #now-line-v { display: none; }
+  body.vert #cards {
+    position: absolute;
+    top: 0; left: 32px; right: 0;
+    height: 100%;
+  }
+  body.vert .pill {
+    height: auto;
+    border-radius: 4px;
+    padding: 3px 7px;
+    cursor: grab;
+  }
+  body.vert .rh {
+    top: auto; right: 0; left: 0;
+    bottom: 0; width: 100%;
+    height: 7px; cursor: ns-resize;
+  }
+  body.vert #ghost {
+    width: calc(100% - 4px) !important;
+    left: 2px !important;
+    height: auto;
+    border-radius: 4px;
+  }
+
+  /* ── popover ── */
+  #pop {
+    position: fixed;
+    top: 36px; right: 10px;
+    width: 210px;
+    background: rgba(255,255,255,.95);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 10px;
+    padding: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,.15), 0 0 0 .5px rgba(0,0,0,.09);
+    display: none; z-index: 600;
+    -webkit-app-region: no-drag;
+  }
+  #pop.open { display: block; }
+  .pl {
+    font-size: 9px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .4px;
+    color: rgba(0,0,0,.38); margin-bottom: 3px;
+  }
+  .pi, .ps {
+    width: 100%; font-size: 13px; font-family: inherit;
+    background: rgba(0,0,0,.06); border: none;
+    border-radius: 6px; padding: 5px 8px;
+    color: #1a1a1a; outline: none; appearance: none;
+  }
+  .pi:focus, .ps:focus { background: rgba(0,0,0,.09); }
+  .p2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0; }
+  .cdots { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 4px; }
+  .cd {
+    width: 16px; height: 16px; border-radius: 50%;
+    cursor: pointer; border: 2px solid transparent;
+    transition: transform .1s;
+  }
+  .cd.sel { border-color: rgba(0,0,0,.4); transform: scale(1.2); }
+  .pf { display: flex; gap: 6px; margin-top: 10px; }
+  .pb {
+    flex: 1; font-size: 12px; font-weight: 500;
+    font-family: inherit; border: none;
+    border-radius: 6px; padding: 6px; cursor: pointer;
+  }
+  .pb-c { background: rgba(0,0,0,.07); color: #1a1a1a; }
+  .pb-a { background: #e06c9f; color: #fff; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="bar">
+    <span id="date"></span>
+    <div id="ctrls">
+      <button class="ic" id="lay-btn" onclick="toggleLayout()" title="Toggle layout">⇕</button>
+      <button class="ic pk" onclick="openAdd()">+</button>
+      <button class="ic" style="background:rgba(0,0,0,0.18);color:rgba(0,0,0,0.6);" onclick="window.electronAPI&&window.electronAPI.quit()" title="Quit">✕</button>
+    </div>
+  </div>
+  <div id="tl">
+    <div id="ruler-line"></div>
+    <div id="ticks"></div>
+    <div id="now-dot" style="display:none"></div>
+    <div id="now-line-v" style="display:none"></div>
+    <div id="cards"><div id="ghost"></div></div>
+  </div>
+</div>
+
+<div id="pop">
+  <div style="margin-bottom:8px">
+    <input class="pi" id="p-name" placeholder="Task name" />
+  </div>
+  <div class="p2">
+    <div><div class="pl">Start</div><select class="ps" id="p-start"></select></div>
+    <div><div class="pl">Duration</div>
+      <select class="ps" id="p-dur">
+        <option value="1">30 min</option>
+        <option value="2" selected>1 hr</option>
+        <option value="3">1.5 hr</option>
+        <option value="4">2 hr</option>
+        <option value="6">3 hr</option>
+        <option value="8">4 hr</option>
+      </select>
+    </div>
+  </div>
+  <div class="pl">Color</div>
+  <div class="cdots" id="cdots"></div>
+  <div class="pf">
+    <button class="pb pb-c" onclick="closePop()">Cancel</button>
+    <button class="pb pb-a" onclick="addTask()">Add</button>
+  </div>
+</div>
+
+<script>
+const S = 9, E = 22, SLOTS = (E - S) * 2;
+const COLORS = ['#e06c9f','#f283b6','#6e9887','#b5bfa1','#c9927a','#9b7ec8','#7aaebd','#d4a76a'];
+const KEY = 'daily-timeline-v2';
+const SLOT_H_VERT = 32;
+
+let tasks = [], selColor = COLORS[0], layout = localStorage.getItem('tl-layout') || 'h';
+let TW = 0; // timeline width (horizontal)
+
+function todayStr() { return new Date().toLocaleDateString('en-CA'); }
+
+function load() {
+  try {
+    const d = JSON.parse(localStorage.getItem(KEY) || 'null');
+    if (!d) return;
+    if (d.date !== todayStr()) { localStorage.removeItem(KEY); return; }
+    tasks = d.tasks || [];
+  } catch(e) {}
+}
+function save() { localStorage.setItem(KEY, JSON.stringify({ date: todayStr(), tasks })); }
+
+function slotMins(s) { return S * 60 + s * 30; }
+function minsLbl(m) {
+  const h = Math.floor(m/60), mn = m%60, ap = h>=12?'pm':'am';
+  const h12 = h>12?h-12:(h===0?12:h);
+  return mn===0?`${h12}${ap}`:`${h12}:${String(mn).padStart(2,'0')}${ap}`;
+}
+function durLbl(s) { const m=s*30; return m<60?`${m}m`:m%60===0?`${m/60}h`:`${Math.floor(m/60)}h${m%60}m`; }
+
+function assignLanes(list) {
+  const sorted = [...list].sort((a,b)=>a.slot-b.slot);
+  const ends = [];
+  sorted.forEach(t => {
+    let lane = ends.findIndex(e=>e<=t.slot);
+    if (lane<0){lane=ends.length;ends.push(0);}
+    ends[lane]=t.slot+t.dur; t._lane=lane;
+  });
+  return ends.length||1;
+}
+
+// ── layout ──
+function toggleLayout() {
+  layout = layout==='h'?'v':'h';
+  localStorage.setItem('tl-layout', layout);
+  applyLayout();
+}
+function applyLayout() {
+  const isV = layout==='v';
+  document.body.classList.toggle('vert', isV);
+  document.getElementById('lay-btn').textContent = isV ? '⇔' : '⇕';
+  if (window.electronAPI) window.electronAPI.setLayout(layout);
+  render();
+}
+
+// ── render ──
+function render() {
+  layout==='v' ? renderV() : renderH();
+  updateNow();
+}
+
+function tlWidth() {
+  const tl = document.getElementById('tl');
+  return tl.clientWidth;
+}
+
+// ── horizontal ──
+function renderH() {
+  TW = tlWidth();
+  buildTicksH();
+  buildCardsH();
+}
+
+function buildTicksH() {
+  const tc = document.getElementById('ticks');
+  tc.innerHTML = '';
+  for (let s = 0; s <= SLOTS; s++) {
+    const pct = (s / SLOTS * 100).toFixed(3) + '%';
+    const isHr = s % 2 === 0;
+    // tick
+    const tick = document.createElement('div');
+    tick.className = 'tick' + (isHr ? ' hr' : '');
+    tick.style.left = pct;
+    tc.appendChild(tick);
+    // label every hour
+    if (s % 2 === 0) {
+      const lbl = document.createElement('div');
+      lbl.className = 'tick-lbl';
+      lbl.style.left = pct;
+      lbl.textContent = minsLbl(slotMins(s));
+      tc.appendChild(lbl);
+    }
+  }
+}
+
+function buildCardsH() {
+  const layer = document.getElementById('cards');
+  const ghost = document.getElementById('ghost');
+  layer.innerHTML = '';
+  layer.appendChild(ghost);
+
+  const active = tasks.filter(t=>!t.done);
+  const done   = tasks.filter(t=>t.done);
+  assignLanes(active);
+  assignLanes(done);
+
+  const PILL_H = 18, GAP = 3;
+  const slotPct = s => (s/SLOTS*100).toFixed(4)+'%';
+  const durPct  = s => (s/SLOTS*100).toFixed(4)+'%';
+
+  [...active, ...done].forEach(t => {
+    const el = document.createElement('div');
+    el.className = 'pill' + (t.done?' done':'');
+    el.dataset.id = t.id;
+    el.style.left  = slotPct(t.slot);
+    el.style.width = `calc(${durPct(t.dur)} - 3px)`;
+    el.style.top   = (t._lane * (PILL_H + GAP)) + 'px';
+    el.style.background = t.done ? t.color+'88' : t.color;
+
+    el.innerHTML = `
+      <span class="pname">${esc(t.title)}</span>
+      <div class="pill-actions">
+        ${t.done
+          ? `<button class="pab" onclick="event.stopPropagation();undone('${t.id}')">Undo</button>`
+          : `<button class="pab" onclick="event.stopPropagation();markDone('${t.id}')">Done</button>`
+        }
+        <button class="pab" onclick="event.stopPropagation();del('${t.id}')">✕</button>
+      </div>
+      ${t.done?'':'<div class="rh" data-id="'+t.id+'"></div>'}
+    `;
+
+    if (!t.done) { dragH(el, t); resizeH(el.querySelector('.rh'), t); }
+    layer.appendChild(el);
+  });
+
+  // set cards layer height
+  const lanes = Math.max(
+    active.reduce((m,t)=>Math.max(m,t._lane),0)+1,
+    done.reduce((m,t)=>Math.max(m,t._lane),0)+1
+  ) || 1;
+  layer.style.height = (lanes * (PILL_H + GAP)) + 'px';
+}
+
+// ── vertical ──
+function renderV() {
+  buildTicksV();
+  buildCardsV();
+}
+
+function buildTicksV() {
+  const tc = document.getElementById('ticks');
+  tc.innerHTML = '';
+  for (let s = 0; s < SLOTS; s++) {
+    const isHr = s % 2 === 0;
+    const row = document.createElement('div');
+    row.className = 'tick' + (isHr ? ' hr' : '');
+    row.dataset.slot = s;
+    if (isHr) {
+      const lbl = document.createElement('div');
+      lbl.className = 'tick-lbl';
+      lbl.textContent = minsLbl(slotMins(s));
+      row.appendChild(lbl);
+    }
+    tc.appendChild(row);
+  }
+}
+
+function buildCardsV() {
+  const layer = document.getElementById('cards');
+  const ghost = document.getElementById('ghost');
+  layer.innerHTML = '';
+  layer.style.height = (SLOTS * SLOT_H_VERT) + 'px';
+  layer.appendChild(ghost);
+
+  const CARD_W = 110, GAP = 3;
+  const active = tasks.filter(t=>!t.done);
+  const done   = tasks.filter(t=>t.done);
+  assignLanes(active);
+  assignLanes(done);
+
+  [...active, ...done].forEach(t => {
+    const el = document.createElement('div');
+    el.className = 'pill' + (t.done?' done':'');
+    el.dataset.id = t.id;
+    el.style.top    = (t.slot * SLOT_H_VERT) + 'px';
+    el.style.height = (t.dur * SLOT_H_VERT - 3) + 'px';
+    el.style.left   = (t._lane * (CARD_W + GAP)) + 'px';
+    el.style.width  = CARD_W + 'px';
+    el.style.background = t.done ? t.color+'88' : t.color;
+
+    el.innerHTML = `
+      <span class="pname">${esc(t.title)}</span>
+      <div class="pill-actions">
+        ${t.done
+          ? `<button class="pab" onclick="event.stopPropagation();undone('${t.id}')">Undo</button>`
+          : `<button class="pab" onclick="event.stopPropagation();markDone('${t.id}')">Done</button>`
+        }
+        <button class="pab" onclick="event.stopPropagation();del('${t.id}')">✕</button>
+      </div>
+      ${t.done?'':'<div class="rh" data-id="'+t.id+'"></div>'}
+    `;
+
+    if (!t.done) { dragV(el, t); resizeV(el.querySelector('.rh'), t); }
+    layer.appendChild(el);
+  });
+}
+
+// ── now indicator ──
+function updateNow() {
+  const now = new Date();
+  const mins = now.getHours()*60+now.getMinutes();
+  const sMin = S*60, eMin = E*60;
+  const dot  = document.getElementById('now-dot');
+  const lineV = document.getElementById('now-line-v');
+  if (mins<sMin||mins>eMin) { dot.style.display='none'; lineV.style.display='none'; return; }
+  const frac = (mins-sMin)/(eMin-sMin);
+  if (layout==='v') {
+    dot.style.display='block';
+    dot.style.top = (frac*SLOTS*SLOT_H_VERT)+'px';
+    dot.style.left='0'; dot.style.right='0';
+    lineV.style.display='none';
+  } else {
+    const pct = (frac*100).toFixed(3)+'%';
+    dot.style.display='block'; dot.style.left=pct;
+    lineV.style.display='block'; lineV.style.left=pct;
+  }
+}
+
+// ── drag horizontal ──
+function dragH(el, task) {
+  let x0, l0, moved;
+  el.addEventListener('mousedown', e => {
+    if (e.target.closest('.rh,.pab')) return;
+    e.preventDefault(); moved=false; x0=e.clientX;
+    const lr = document.getElementById('cards').getBoundingClientRect();
+    l0 = el.getBoundingClientRect().left - lr.left;
+    const W = lr.width;
+    const ghost = document.getElementById('ghost');
+
+    const move = mv => {
+      moved=true;
+      TW = W;
+      const sw = W/SLOTS;
+      const raw = Math.max(0, Math.min(l0 + mv.clientX-x0, (SLOTS-1)*sw));
+      const snap = Math.round(raw/sw);
+      el.classList.add('dragging');
+      el.style.left = raw+'px';
+      if (snap+task.dur<=SLOTS) {
+        ghost.style.left=(snap/SLOTS*100).toFixed(3)+'%';
+        ghost.style.top=el.style.top;
+        ghost.style.width=`calc(${(task.dur/SLOTS*100).toFixed(3)}% - 3px)`;
+        ghost.classList.add('on');
+      } else ghost.classList.remove('on');
+    };
+    const up = () => {
+      document.removeEventListener('mousemove',move);
+      document.removeEventListener('mouseup',up);
+      el.classList.remove('dragging'); ghost.classList.remove('on');
+      if (moved) {
+        const sw = W/SLOTS;
+        const snap = Math.max(0,Math.round(parseFloat(el.style.left)/sw));
+        task.slot = Math.min(snap, SLOTS-task.dur);
+        save(); render();
+      }
+    };
+    document.addEventListener('mousemove',move);
+    document.addEventListener('mouseup',up);
+  });
+}
+
+function resizeH(handle, task) {
+  handle.addEventListener('mousedown', e => {
+    e.preventDefault(); e.stopPropagation();
+    const x0=e.clientX, d0=task.dur;
+    const W = document.getElementById('cards').getBoundingClientRect().width;
+    const sw = W/SLOTS;
+    const move = mv => {
+      const nd = Math.max(1,Math.min(d0+Math.round((mv.clientX-x0)/sw),SLOTS-task.slot));
+      if (task.dur!==nd) {
+        task.dur=nd;
+        const el=document.querySelector(`.pill[data-id="${task.id}"]`);
+        if(el) el.style.width=(nd/SLOTS*100).toFixed(3)+'%';
+      }
+    };
+    const up=()=>{ document.removeEventListener('mousemove',move); document.removeEventListener('mouseup',up); save();render(); };
+    document.addEventListener('mousemove',move); document.addEventListener('mouseup',up);
+  });
+}
+
+// ── drag vertical ──
+function dragV(el, task) {
+  let y0, t0, moved;
+  el.addEventListener('mousedown', e => {
+    if (e.target.closest('.rh,.pab')) return;
+    e.preventDefault(); moved=false; y0=e.clientY;
+    const lr = document.getElementById('cards').getBoundingClientRect();
+    t0 = el.getBoundingClientRect().top - lr.top;
+    const ghost = document.getElementById('ghost');
+
+    const move = mv => {
+      moved=true;
+      const raw = Math.max(0,Math.min(t0+mv.clientY-y0,(SLOTS-1)*SLOT_H_VERT));
+      const snap = Math.round(raw/SLOT_H_VERT);
+      el.classList.add('dragging'); el.style.top=raw+'px';
+      if (snap+task.dur<=SLOTS) {
+        ghost.style.top=(snap*SLOT_H_VERT)+'px';
+        ghost.style.left=el.style.left;
+        ghost.style.height=(task.dur*SLOT_H_VERT-3)+'px';
+        ghost.classList.add('on');
+      } else ghost.classList.remove('on');
+    };
+    const up=()=>{
+      document.removeEventListener('mousemove',move); document.removeEventListener('mouseup',up);
+      el.classList.remove('dragging'); ghost.classList.remove('on');
+      if(moved){
+        const snap=Math.max(0,Math.round(parseFloat(el.style.top)/SLOT_H_VERT));
+        task.slot=Math.min(snap,SLOTS-task.dur); save();render();
+      }
+    };
+    document.addEventListener('mousemove',move); document.addEventListener('mouseup',up);
+  });
+}
+
+function resizeV(handle, task) {
+  if(!handle) return;
+  handle.addEventListener('mousedown', e => {
+    e.preventDefault(); e.stopPropagation();
+    const y0=e.clientY, d0=task.dur;
+    const move=mv=>{
+      const nd=Math.max(1,Math.min(d0+Math.round((mv.clientY-y0)/SLOT_H_VERT),SLOTS-task.slot));
+      if(task.dur!==nd){
+        task.dur=nd;
+        const el=document.querySelector(`.pill[data-id="${task.id}"]`);
+        if(el) el.style.height=(nd*SLOT_H_VERT-3)+'px';
+      }
+    };
+    const up=()=>{ document.removeEventListener('mousemove',move); document.removeEventListener('mouseup',up); save();render(); };
+    document.addEventListener('mousemove',move); document.addEventListener('mouseup',up);
+  });
+}
+
+// ── task actions ──
+function markDone(id){const t=tasks.find(t=>t.id===id);if(t){t.done=true;save();render();}}
+function undone(id){const t=tasks.find(t=>t.id===id);if(t){t.done=false;save();render();}}
+function del(id){tasks=tasks.filter(t=>t.id!==id);save();render();}
+
+// ── popover ──
+let popOpen=false;
+function togglePop(){popOpen?closePop():openPop();}
+function openPop(){
+  popOpen=true;
+  const sel=document.getElementById('p-start');
+  sel.innerHTML='';
+  for(let s=0;s<SLOTS;s++){
+    const o=document.createElement('option');
+    o.value=s; o.textContent=minsLbl(slotMins(s)); sel.appendChild(o);
+  }
+  const now=new Date();
+  sel.value=Math.max(0,Math.min(Math.round((now.getHours()*60+now.getMinutes()-S*60)/30),SLOTS-1));
+  document.getElementById('cdots').innerHTML=COLORS.map(c=>`<div class="cd${c===selColor?' sel':''}" style="background:${c}" onclick="pickColor('${c}')"></div>`).join('');
+  document.getElementById('p-name').value='';
+  document.getElementById('pop').classList.add('open');
+  setTimeout(()=>document.getElementById('p-name').focus(),30);
+}
+function closePop(){popOpen=false;document.getElementById('pop').classList.remove('open');}
+function pickColor(c){
+  selColor=c;
+  document.querySelectorAll('.cd').forEach(d=>d.classList.toggle('sel',d.style.background===c||rgbHex(d.style.background)===c));
+}
+function rgbHex(rgb){
+  const m=rgb.match(/\d+/g);if(!m)return rgb;
+  return '#'+m.slice(0,3).map(x=>parseInt(x).toString(16).padStart(2,'0')).join('');
+}
+function addTask(){
+  const name=document.getElementById('p-name').value.trim();
+  if(!name){document.getElementById('p-name').focus();return;}
+  tasks.push({
+    id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),
+    title:name,
+    slot:parseInt(document.getElementById('p-start').value),
+    dur:parseInt(document.getElementById('p-dur').value),
+    color:selColor, done:false,
+  });
+  save();render();closePop();
+  selColor=COLORS[(COLORS.indexOf(selColor)+1)%COLORS.length];
+}
+
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+// ── date ──
+document.getElementById('date').textContent=new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+
+// ── close popover on outside click ──
+document.addEventListener('click',e=>{
+  if(popOpen&&!e.target.closest('#pop')&&!e.target.closest('.ic.pk'))closePop();
+});
+document.getElementById('p-name').addEventListener('keydown',e=>{
+  if(e.key==='Enter')addTask();
+  if(e.key==='Escape')closePop();
+});
+
+// ── electron ──
+if(window.electronAPI){
+  window.electronAPI.onLayoutChanged(mode=>{
+    layout=mode; localStorage.setItem('tl-layout',layout); applyLayout();
+  });
+  window.electronAPI.onTaskAdded(task=>{
+    task.id = Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+    task.done = false;
+    tasks.push(task);
+    selColor = COLORS[(COLORS.indexOf(task.color)+1)%COLORS.length];
+    save(); render();
+  });
+}
+
+function openAdd(){
+  if(window.electronAPI){
+    window.electronAPI.openAddTask({ color: selColor });
+  } else {
+    togglePop();
+  }
+}
+
+// ── init ──
+load();
+applyLayout();
+window.addEventListener('resize',()=>render());
+setInterval(updateNow,60000);
+</script>
+</body>
+</html>
